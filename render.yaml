@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: syncyomi
+    env: docker
+    plan: free
+    region: frankfurt  # ou "oregon", "virginia" selon ta localisation
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: PORT
+        value: "8282"
