@@ -1,7 +1,48 @@
 # -----------------------------
+# build web (frontend)
+# -----------------------------
+FROM node:20-alpine3.18 AS web-builder
+WORKDIR /web
+
+RUN apk add --no-cache python3 make g++
+
+COPY web/package.json web/pnpm-lock.yaml ./
+
+RUN npm install -g pnpm
+RUN pnpm install --frozen-lockfile
+
+COPY web/ .
+RUN pnpm run build
+
+# -----------------------------
+# build app (backend Go)
+# -----------------------------
+FROM golang:1.20-alpine3.16 AS app-builder
+
+ARG VERSION=dev
+ARG REVISION=dev
+ARG BUILDTIME
+
+RUN apk add --no-cache git make build-base tzdata
+
+ENV SERVICE=syncyomi
+
+WORKDIR /src
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . ./
+
+COPY --from=web-builder /web/dist ./web/dist
+COPY --from=web-builder /web/build.go ./web
+
+RUN go build -ldflags "-s -w -X main.version=${VERSION} -X main.commit=${REVISION} -X main.date=${BUILDTIME}" -o bin/syncyomi main.go
+
+# -----------------------------
 # final image with Nginx
 # -----------------------------
-FROM alpine:latest
+FROM alpine:latest AS final
 
 LABEL org.opencontainers.image.source="https://github.com/SyncYomi/SyncYomi"
 
@@ -15,6 +56,7 @@ WORKDIR /app
 
 VOLUME /config
 
+# ✅ copier le binaire depuis l’étape "app-builder"
 COPY --from=app-builder /src/bin/syncyomi /usr/local/bin/
 
 # -----------------------------
