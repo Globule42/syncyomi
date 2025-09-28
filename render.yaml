@@ -3,8 +3,9 @@ services:
     name: syncyomi
     env: docker
     plan: free
-    region: frankfurt
+    autoDeploy: true
     dockerfilePath: ./Dockerfile
+    # Render attend que ton app écoute sur $PORT, donc on force Nginx sur 80
     envVars:
       - key: PORT
-        value: "8282"
+        value: 80
