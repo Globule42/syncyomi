@@ -3,7 +3,7 @@ services:
     name: syncyomi
     env: docker
     plan: free
-    region: frankfurt  # ou "oregon", "virginia" selon ta localisation
+    region: frankfurt
     dockerfilePath: ./Dockerfile
     envVars:
       - key: PORT

@@ -68,4 +68,5 @@ COPY --from=app-builder /src/bin/syncyomi /usr/local/bin/
 
 EXPOSE 8282
 
-ENTRYPOINT ["/usr/local/bin/syncyomi", "--config", "/config"]
+# ✅ Forcer l’écoute sur 0.0.0.0 pour Render
+ENTRYPOINT ["/usr/local/bin/syncyomi", "--config", "/config", "--host", "0.0.0.0", "--port", "8282"]
