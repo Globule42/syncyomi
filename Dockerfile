@@ -56,7 +56,7 @@ WORKDIR /app
 
 VOLUME /config
 
-# ✅ copier le binaire depuis l’étape "app-builder"
+# copier le binaire SyncYomi
 COPY --from=app-builder /src/bin/syncyomi /usr/local/bin/
 
 # -----------------------------
@@ -78,11 +78,11 @@ http {
 }
 EOF
 
-# site par défaut (reverse proxy)
+# default site (reverse proxy vers SyncYomi)
 RUN mkdir -p /etc/nginx/conf.d
 RUN cat > /etc/nginx/conf.d/default.conf <<EOF
 server {
-    listen 8282;
+    listen 80;
 
     location / {
         proxy_pass http://127.0.0.1:8282;
@@ -97,7 +97,7 @@ server {
 }
 EOF
 
-EXPOSE 8282
+EXPOSE 80
 
-# lancer syncyomi en arrière-plan puis nginx en foreground
+# lancer SyncYomi en arrière-plan puis Nginx en foreground
 CMD ["/bin/sh", "-c", "/usr/local/bin/syncyomi --config /config & sleep 1; nginx -g 'daemon off;'"]
