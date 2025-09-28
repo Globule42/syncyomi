@@ -5,7 +5,7 @@ FROM node:20-alpine3.18 AS web-builder
 WORKDIR /web
 
 # outils nécessaires pour compiler certaines dépendances Node
-RUN apk add --no-cache python3 make g++ 
+RUN apk add --no-cache python3 make g++
 
 # copier les fichiers de dépendances
 COPY web/package.json web/pnpm-lock.yaml ./
@@ -48,7 +48,7 @@ COPY --from=web-builder /web/build.go ./web
 RUN go build -ldflags "-s -w -X main.version=${VERSION} -X main.commit=${REVISION} -X main.date=${BUILDTIME}" -o bin/syncyomi main.go
 
 # -----------------------------
-# final image
+# final image with Nginx
 # -----------------------------
 FROM alpine:latest
 
@@ -58,15 +58,26 @@ ENV HOME="/config" \
     XDG_CONFIG_HOME="/config" \
     XDG_DATA_HOME="/config"
 
-RUN apk add --no-cache ca-certificates curl tzdata jq
+# installer dépendances + nginx
+RUN apk add --no-cache ca-certificates curl tzdata jq nginx bash
 
 WORKDIR /app
 
 VOLUME /config
 
+# copier le binaire Go
 COPY --from=app-builder /src/bin/syncyomi /usr/local/bin/
+
+# config nginx : reverse proxy vers syncyomi
+RUN mkdir -p /etc/nginx/conf.d
+RUN echo 'server { \
+    listen 8282; \
+    location / { \
+        proxy_pass http://127.0.0.1:8282; \
+    } \
+}' > /etc/nginx/conf.d/default.conf
 
 EXPOSE 8282
 
-# ✅ Forcer l’écoute sur 0.0.0.0 pour Render
-ENTRYPOINT ["/usr/local/bin/syncyomi", "--config", "/config", "--host", "0.0.0.0", "--port", "8282"]
+# lancer syncyomi en background puis nginx en foreground
+CMD ["/bin/sh", "-c", "/usr/local/bin/syncyomi --config /config & nginx -g 'daemon off;'"]
