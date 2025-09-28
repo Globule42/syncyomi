@@ -1,45 +1,4 @@
 # -----------------------------
-# build web (frontend)
-# -----------------------------
-FROM node:20-alpine3.18 AS web-builder
-WORKDIR /web
-
-RUN apk add --no-cache python3 make g++
-
-COPY web/package.json web/pnpm-lock.yaml ./
-
-RUN npm install -g pnpm
-RUN pnpm install --frozen-lockfile
-
-COPY web/ .
-RUN pnpm run build
-
-# -----------------------------
-# build app (backend Go)
-# -----------------------------
-FROM golang:1.20-alpine3.16 AS app-builder
-
-ARG VERSION=dev
-ARG REVISION=dev
-ARG BUILDTIME
-
-RUN apk add --no-cache git make build-base tzdata
-
-ENV SERVICE=syncyomi
-
-WORKDIR /src
-
-COPY go.mod go.sum ./
-RUN go mod download
-
-COPY . ./
-
-COPY --from=web-builder /web/dist ./web/dist
-COPY --from=web-builder /web/build.go ./web
-
-RUN go build -ldflags "-s -w -X main.version=${VERSION} -X main.commit=${REVISION} -X main.date=${BUILDTIME}" -o bin/syncyomi main.go
-
-# -----------------------------
 # final image with Nginx
 # -----------------------------
 FROM alpine:latest
@@ -58,9 +17,28 @@ VOLUME /config
 
 COPY --from=app-builder /src/bin/syncyomi /usr/local/bin/
 
-# ✅ config nginx propre via heredoc
-RUN mkdir -p /etc/nginx/conf.d \
- && cat > /etc/nginx/conf.d/default.conf <<EOF
+# -----------------------------
+# config Nginx
+# -----------------------------
+RUN mkdir -p /etc/nginx
+
+# nginx.conf principal
+RUN cat > /etc/nginx/nginx.conf <<EOF
+worker_processes auto;
+events { worker_connections 1024; }
+
+http {
+    include       /etc/nginx/mime.types;
+    default_type  application/octet-stream;
+    sendfile      on;
+
+    include /etc/nginx/conf.d/*.conf;
+}
+EOF
+
+# site par défaut (reverse proxy)
+RUN mkdir -p /etc/nginx/conf.d
+RUN cat > /etc/nginx/conf.d/default.conf <<EOF
 server {
     listen 8282;
 
@@ -79,4 +57,5 @@ EOF
 
 EXPOSE 8282
 
+# lancer syncyomi en arrière-plan puis nginx en foreground
 CMD ["/bin/sh", "-c", "/usr/local/bin/syncyomi --config /config & sleep 1; nginx -g 'daemon off;'"]
