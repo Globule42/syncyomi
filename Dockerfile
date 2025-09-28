@@ -58,14 +58,25 @@ VOLUME /config
 
 COPY --from=app-builder /src/bin/syncyomi /usr/local/bin/
 
-# create nginx config using a heredoc (safe, no weird escaping)
-RUN mkdir -p /etc/nginx/conf.d
-RUN cat > /etc/nginx/conf.d/default.conf <<'EOF'
+# ✅ config nginx propre via heredoc
+RUN mkdir -p /etc/nginx/conf.d \
+ && cat > /etc/nginx/conf.d/default.conf <<EOF
 server {
     listen 8282;
 
     location / {
         proxy_pass http://127.0.0.1:8282;
         proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+}
+EOF
+
+EXPOSE 8282
+
+CMD ["/bin/sh", "-c", "/usr/local/bin/syncyomi --config /config & sleep 1; nginx -g 'daemon off;'"]
